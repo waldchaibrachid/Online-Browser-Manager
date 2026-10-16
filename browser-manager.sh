@@ -1,23 +1,10 @@
-
----
-
-### 📜 File 2: `browser-manager.sh`
-*Create this file in your repository. This is the improved, interactive script.*
-
-```bash
 #!/bin/bash
 
-# ==========================================
-# Color Definitions
-# ==========================================
 Red='\e[0;31m'; Green='\e[0;32m'; Yellow='\e[0;33m'
 Blue='\e[0;34m'; Purple='\e[0;35m'; Cyan='\e[0;36m'; White='\e[0;37m'
 BRed='\e[1;31m'; BGreen='\e[1;32m'; BYellow='\e[1;33m'; BWhite='\e[1;37m'
-NC='\e[0m' # No Color
+NC='\e[0m'
 
-# ==========================================
-# Helper Functions
-# ==========================================
 clear_screen() { clear; }
 
 print_header() {
@@ -30,14 +17,14 @@ print_header() {
     echo -e "     |${Green}    ██║   ██║██║╚██╗██║██║     ██║██║╚██╗██║██╔══╝      ${Red}██${White}╔══${Red}██${White}╗${Red}██${White}╔══${Red}██${White}╗${Red}██${White}║   ${Red}██${White}║${Red}██${White}║${Red}███${White}╗${Red}██${White}║╚════${Red}██${White}║${Red}██${White}╔══╝  ${Red}██${White}╔══${Red}██${White}╗    ${Yellow} |"
     echo -e "     |${BGreen}    ╚██████╔╝██║ ╚████║███████╗██║██║ ╚████║███████╗    ${BRed}██████${White}╔╝${BRed}██${White}║${BRed}  ██${White}║╚${BRed}██████${White}╔╝╚${BRed}███${White}╔${BRed}███${White}╔╝${BRed}███████${White}║${BRed}███████${White}╗${BRed}██${White}║  ${BRed}██${White}║    ${Yellow} |"
     echo -e "     |${Green}     ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝    ${White}╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝ ${Yellow}    |"
-    echo -e "     |                                                                                                               ${BCyan} v2.0${Yellow}    |"
+    echo -e "     |                                                                                                               ${BCyan} v3.1${Yellow}    |"
     echo -e "${Cyan}    +${Yellow}--------------------------------------------------------------------------------------------------------------------------${Cyan}+${NC}"
     echo ""
 }
 
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        echo -e "${BRed}[ERROR]${NC} Docker is not installed. Please install Docker first."
+        echo -e "${BRed}[ERROR]${NC} Docker is not installed."
         exit 1
     fi
 }
@@ -49,16 +36,20 @@ install_browser() {
     local internal_port=3000
     
     echo -e "${BYellow}[*]${NC} Installing ${BGreen}$name${NC}..."
+    echo -e "${BCyan}[i]${NC} Downloading image and starting container (this may take a few minutes)...\n"
     
-    # Check if already running
-    if docker ps --format '{{.Names}}' | grep -q "^${name}$"; then
-        echo -e "${BRed}[!]${NC} $name is already running!"
-        return
+    # FIX: Automatically remove old stopped containers with the same name
+    if docker ps -a --format '{{.Names}}' | grep -q "^${name}$"; then
+        echo -e "${BYellow}[!]${NC} Container '$name' already exists. Removing old version..."
+        docker rm -f "$name" > /dev/null 2>&1
     fi
 
+    # Download progress is now visible!
     docker run -d \
         --name="$name" \
-        --shm-size="2gb" \
+        --shm-size="3gb" \
+        --memory="3g" \
+        --ulimit nofile=65536:65536 \
         -p "$port:$internal_port" \
         -v "$HOME/$name-config":/config \
         -e PUID=1000 \
@@ -66,11 +57,11 @@ install_browser() {
         -e TZ=UTC \
         --security-opt seccomp=unconfined \
         --restart unless-stopped \
-        "$image" > /dev/null 2>&1
+        "$image"
 
     if [ $? -eq 0 ]; then
-        echo -e "${BGreen}[✔]${NC} $name installed successfully!"
-        echo -e "${BCyan}[i]${NC} Access it via Web Preview on port ${BYellow}6080${NC} (or http://localhost:6080)"
+        echo -e "\n${BGreen}[✔]${NC} $name installed successfully!"
+        echo -e "${BCyan}[i]${NC} Access via Web Preview on port ${BYellow}6080${NC}"
     else
         echo -e "${BRed}[✖]${NC} Failed to install $name."
     fi
@@ -81,29 +72,24 @@ manage_browser() {
     local action=$2
     
     case $action in
-        "start")
-            docker start "$name" > /dev/null && echo -e "${BGreen}[✔]${NC} Started $name" || echo -e "${BRed}[✖]${NC} Failed to start $name"
+        "1")
+            docker start "$name" > /dev/null && echo -e "${BGreen}[✔]${NC} Started $name" || echo -e "${BRed}[✖]${NC} Failed"
             ;;
-        "stop")
-            docker stop "$name" > /dev/null && echo -e "${BYellow}[✔]${NC} Stopped $name" || echo -e "${BRed}[✖]${NC} Failed to stop $name"
+        "2")
+            docker stop "$name" > /dev/null && echo -e "${BYellow}[✔]${NC} Stopped $name" || echo -e "${BRed}[✖]${NC} Failed"
             ;;
-        "remove")
+        "3")
             docker stop "$name" > /dev/null 2>&1
             docker rm "$name" > /dev/null 2>&1
             rm -rf "$HOME/$name-config"
-            echo -e "${BRed}[✔]${NC} Completely removed $name and its config."
+            echo -e "${BRed}[✔]${NC} Removed $name and its config."
             ;;
-        "logs")
-            echo -e "${BCyan}--- Last 15 lines of $name logs ---${NC}"
-            docker logs --tail 15 "$name"
-            echo -e "${BCyan}------------------------------------${NC}"
+        "4")
+            docker logs --tail 20 "$name"
             ;;
     esac
 }
 
-# ==========================================
-# Main Menu Loop
-# ==========================================
 main_menu() {
     while true; do
         print_header
@@ -132,16 +118,49 @@ main_menu() {
                 echo -e "${BCyan}--- Currently Installed Browsers ---${NC}"
                 docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "chromium|firefox|opera|mullvad" || echo -e "${BYellow}No browsers found.${NC}"
                 echo ""
-                echo -e -n "${White}Enter browser name to manage (or 'back' to return): ${NC}"
-                read -r b_name
-                if [[ "$b_name" == "back" ]]; then continue; fi
                 
-                if [[ -n "$b_name" ]]; then
-                    echo -e "${White}Actions: ${Green}start${White}, ${BYellow}stop${White}, ${BRed}remove${White}, ${BCyan}logs${NC}"
-                    echo -e -n "Choose action: ${NC}"
-                    read -r action
-                    manage_browser "$b_name" "$action"
-                fi
+                echo -e "${Yellow}     +${White}-------------------------------------------------------------------${Yellow}+"
+                echo -e "${White}     | ${Yellow} ID ${White} |                   ${BPurple}   Select Browser                       ${White}   |"
+                echo -e "${Yellow}     +${White}-------------------------------------------------------------------${Yellow}+"
+                echo -e "${White}     | ${Red}[${Yellow}1${Red}]${White}  | ${BGreen}Chromium${White}                                                  |"
+                echo -e "${White}     | ${Red}[${Yellow}2${Red}]${White}  | ${BGreen}Firefox${White}                                                   |"
+                echo -e "${White}     | ${Red}[${Yellow}3${Red}]${White}  | ${BGreen}Opera${White}                                                     |"
+                echo -e "${White}     | ${Red}[${Yellow}4${Red}]${White}  | ${BGreen}Mullvad Browser${White}                                           |"
+                echo -e "${White}     | ${Red}[${Yellow}0${Red}]${White}  | ${BRed}Back to Main Menu${White}                                         |"
+                echo -e "${Yellow}     +${White}-------------------------------------------------------------------${Yellow}+"
+                echo ""
+                echo -e -n "${White}    ${Red}[${Cyan}!${Red}]${White} Enter browser number: ${NC}"
+                read -r b_choice
+                
+                case $b_choice in
+                    1) b_name="chromium" ;;
+                    2) b_name="firefox" ;;
+                    3) b_name="opera" ;;
+                    4) b_name="mullvad-browser" ;;
+                    0) continue ;;
+                    *) 
+                        echo -e "${BRed}[!] Invalid choice.${NC}"
+                        sleep 1
+                        continue 
+                        ;;
+                esac
+                
+                echo ""
+                echo -e "${Yellow}     +${White}-------------------------------------------------------------------${Yellow}+"
+                echo -e "${White}     | ${Yellow} ID ${White} |                   ${BPurple}   Select Action                        ${White}   |"
+                echo -e "${Yellow}     +${White}-------------------------------------------------------------------${Yellow}+"
+                echo -e "${White}     | ${Red}[${Yellow}1${Red}]${White}  | ${BGreen}Start${White}                                                     |"
+                echo -e "${White}     | ${Red}[${Yellow}2${Red}]${White}  | ${BYellow}Stop${White}                                                      |"
+                echo -e "${White}     | ${Red}[${Yellow}3${Red}]${White}  | ${BRed}Remove (Deletes all data)${White}                                 |"
+                echo -e "${White}     | ${Red}[${Yellow}4${Red}]${White}  | ${BCyan}View Logs${White}                                                 |"
+                echo -e "${White}     | ${Red}[${Yellow}0${Red}]${White}  | ${BRed}Back to Main Menu${White}                                         |"
+                echo -e "${Yellow}     +${White}-------------------------------------------------------------------${Yellow}+"
+                echo ""
+                echo -e -n "${White}    ${Red}[${Cyan}!${Red}]${White} Choose action number: ${NC}"
+                read -r action
+                
+                if [[ "$action" == "0" ]]; then continue; fi
+                manage_browser "$b_name" "$action"
                 ;;
             0) 
                 echo -e "${BGreen}Exiting. Happy browsing! ( •̀ ω •́ )✧${NC}"
@@ -159,8 +178,5 @@ main_menu() {
     done
 }
 
-# ==========================================
-# Execution
-# ==========================================
 check_docker
 main_menu
